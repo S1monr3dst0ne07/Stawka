@@ -60,8 +60,8 @@ def filter_links_from_reddit():
     CREATE TABLE IF NOT EXISTS links (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         url TEXT UNIQUE,
-        source_id INTEGER,
-        FOREIGN KEY (source_id)
+        post_id INTEGER,
+        FOREIGN KEY (post_id)
         REFERENCES reddit (id)
             ON DELETE CASCADE
             ON UPDATE CASCADE
@@ -75,7 +75,7 @@ def filter_links_from_reddit():
         links = extor.find_urls(content)
         stream = zip(iter(lambda: id, 1), links)
         cur.executemany("""
-            INSERT OR IGNORE INTO links (url, source_id)
+            INSERT OR IGNORE INTO links (post_id, url)
             VALUES (?, ?);
             """, stream
         )
@@ -83,7 +83,30 @@ def filter_links_from_reddit():
     db.commit()
 
         
+def filter_github_from_links():
+    cur = db.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS github (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT UNIQUE,
+        owner TEXT UNIQUE,
+        repo_name TEXT UNIQUE,
+        post_id INTEGER,
+        FOREIGN KEY (post_id)
+        REFERENCES reddit (id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE,
+        readme TEXT,
+        star_count INTEGER,
+        issue_count INTEGER,
+        pr_count INTEGER,
+        commit_count INTEGER,
+    )
+    """)
 
+    cur.execute("SELECT url, post_id FROM links")
+    for (url, post_id) in cur.fetchall():
+        pass
 
 
 
