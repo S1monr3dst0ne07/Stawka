@@ -2,6 +2,7 @@ import praw
 import json
 import argparse
 import sqlite3
+import urlextract
 
 parser = argparse.ArgumentParser(
     prog='Stawka (/stɔuka/, cute version of stalker)',
@@ -20,7 +21,7 @@ db = sqlite3.connect(args.database)
 
 
 
-def update_reddit_posts(subreddit='ProgrammingLanguages'):
+def update_reddit(subreddit='ProgrammingLanguages'):
     with open(args.creds, 'r') as f:
         cred = json.load(f)
 
@@ -43,16 +44,49 @@ def update_reddit_posts(subreddit='ProgrammingLanguages'):
 
     s = reddit.subreddit(subreddit)
     for mode in (s.hot, s.new, s.rising):
-        for post in mode(limit = 5):
+        for post in mode(limit = 10000):
             cur.execute("""
                 INSERT OR IGNORE INTO reddit (reddit_id, title, score, url, content, subreddit)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?);
                 """, (post.id, post.title, post.score, post.url, post.selftext, subreddit)
             )
 
     db.commit()
 
 
-update_reddit_posts()
+def filter_links_from_reddit():
+    cur = db.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT UNIQUE,
+        source_id INTEGER,
+        FOREIGN KEY (source_id)
+        REFERENCES reddit (id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+    )
+    """)
+
+    extor = urlextract.URLExtract()
+
+    cur.execute("SELECT id, content FROM reddit")
+    for (id, content) in cur.fetchall():
+        links = extor.find_urls(content)
+        stream = zip(iter(lambda: id, 1), links)
+        cur.executemany("""
+            INSERT OR IGNORE INTO links (url, source_id)
+            VALUES (?, ?);
+            """, stream
+        )
+
+    db.commit()
+
+        
+
+
+
+
+filter_links_from_reddit()
 db.close()
 
