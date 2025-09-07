@@ -5,6 +5,11 @@ import sqlite3
 import urlextract
 import urllib.parse
 import requests
+import subprocess
+import tempfile
+import os
+import time
+import shutil
 
 parser = argparse.ArgumentParser(
     prog='Stawka (/stɔuka/, cute version of stalker)',
@@ -14,6 +19,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--database", action="store", default="main.db", help="database file path")
 parser.add_argument("--github-token", dest = "github_token", action="store", default="creds/github.txt", help = "github access token file path")
 parser.add_argument("--reddit-creds", dest = "reddit_creds", action="store", default="creds/reddit.json", help = "reddit credential file path")
+parser.add_argument("--fox-path", dest = "foxpath", action="store", default=r"C:\Program Files\Mozilla Firefox\firefox.exe", help = "firefox executable path")
+parser.add_argument("--fox-file", dest = "foxfile", action="store", default="fox_file", help = "firefox profile (instance will use copy)")
 args = parser.parse_args()
 
 
@@ -211,10 +218,34 @@ def fetch_github_stats():
 
 
 
+def user_interact():
+    
+
+    profile = tempfile.mkdtemp()
+    shutil.copytree(os.path.abspath(args.foxfile), profile, dirs_exist_ok=True)
+    subprocess.Popen([args.foxpath, "-no-remote", "-profile", profile])
+
+    #wait for exit
+    input("any key to continue")
+
+    # Read browsing history from places.sqlite
+    db_path = os.path.join(profile, "places.sqlite")
+    if os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT url FROM moz_places")
+        for row in cursor.fetchall():
+            print(row)
+        conn.close()
+
 
 
 #filter_links_from_reddit()
 #filter_github_from_links()
-fetch_github_stats()
+#fetch_github_stats()
+user_interact()
+
+
+
 db.close()
 
