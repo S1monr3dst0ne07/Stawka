@@ -32,6 +32,7 @@ db = sqlite3.connect(args.database)
 
 
 def fetch_reddit(subreddit='ProgrammingLanguages'):
+    print("fetch reddit... ")
     with open(args.reddit_creds, 'r') as f:
         cred = json.load(f)
 
@@ -47,24 +48,29 @@ def fetch_reddit(subreddit='ProgrammingLanguages'):
         score INTEGER,
         url TEXT,
         content TEXT,
-        subreddit TEXT
+        subreddit TEXT,
+        self BOOLEAN
     );
     """)
 
 
     s = reddit.subreddit(subreddit)
     for mode in (s.hot, s.new, s.rising):
+        print(f"mode: {mode}")
         for post in mode(limit = 10000):
+            print(post.title)
             cur.execute("""
-                INSERT OR IGNORE INTO reddit (reddit_id, title, score, url, content, subreddit)
-                VALUES (?, ?, ?, ?, ?, ?);
-                """, (post.id, post.title, post.score, post.url, post.selftext, subreddit)
+                INSERT OR IGNORE INTO reddit (reddit_id, title, score, url, content, subreddit, self)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+                """, (post.id, post.title, post.score, post.url, post.selftext, subreddit, post.is_self)
             )
 
     db.commit()
+    print("done")
 
 
 def filter_links_from_reddit():
+    print("filter links from reddit... ")
     cur = db.cursor()
     cur.execute("""
     CREATE TABLE IF NOT EXISTS links (
@@ -80,7 +86,8 @@ def filter_links_from_reddit():
 
     extor = urlextract.URLExtract()
 
-    cur.execute("SELECT id, content FROM reddit")
+    #process self post
+    cur.execute("SELECT id, content FROM reddit WHERE self = TRUE")
     for (id, content_raw) in cur.fetchall():
         #unescape
         content = content_raw.replace("\\_", "_").replace("\\~", "~")
@@ -97,10 +104,21 @@ def filter_links_from_reddit():
             VALUES (?, ?)""", stream
         )
 
+    #process link post
+    cur.execute("SELECT id, url FROM reddit WHERE self = FALSE")
+    for (id, url) in cur.fetchall():
+        cur.execute("""
+            INSERT OR IGNORE INTO links (post_id, url)
+            VALUES (?, ?)""", (id, url)
+        )
+
+
     db.commit()
+    print("done")
 
         
 def filter_github_from_links():
+    print("filter github from links... ")
     cur = db.cursor()
     cur.execute("""
     CREATE TABLE IF NOT EXISTS github (
@@ -147,6 +165,7 @@ def filter_github_from_links():
         )
 
     db.commit()
+    print("done")
 
 
 def fetch_github_stats():
@@ -177,16 +196,12 @@ def fetch_github_stats():
 
     cur.execute("SELECT id, owner_name, repo_name FROM github WHERE processed = FALSE")
     for (row_id, owner, name) in cur.fetchall():
+        print(f"{owner}/{name}")
         response = requests.post(
             "https://api.github.com/graphql", 
             json={"query": query % {"owner": owner, "name": name}},
             headers=headers
         )
-
-        print(response.status_code)
-        print(response.json()) 
-        print(owner, name)
-
 
         repo_data = response.json()["data"]["repository"]
         if repo_data is None:
@@ -214,11 +229,46 @@ def fetch_github_stats():
         )
 
         db.commit()
+    print("done")
 
 
 
 
-def user_interact():
+def filter_review_from_github():
+    print("filter review from github... ")
+    cur = db.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS review (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        github_id INTEGER UNIQUE,
+        eligible BOOLEAN,
+        status TEXT,
+        desc TEXT,
+        sites TEXT,
+
+        FOREIGN KEY (github_id)
+        REFERENCES github (id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+    )
+    """)
+
+    cur.execute("SELECT id, star_count, issue_count, pr_count FROM github WHERE processed = TRUE")
+    for (github_id, star_count, issue_count, pr_count) in cur.fetchall():
+        eligible = star_count < 30 and issue_count < 20 and pr_count < 20
+
+        cur.execute("""
+            INSERT OR IGNORE INTO review (github_id, eligible, status)
+            VALUES (?, ?, 'un')""", (github_id, eligible)
+        )
+
+    db.commit()
+    print("done")
+
+
+
+
+def interact():
     
 
     profile = tempfile.mkdtemp()
@@ -226,7 +276,7 @@ def user_interact():
     subprocess.Popen([args.foxpath, "-no-remote", "-profile", profile])
 
     #wait for exit
-    input("any key to continue")
+    input("any key when done browsing")
 
     # Read browsing history from places.sqlite
     db_path = os.path.join(profile, "places.sqlite")
@@ -240,10 +290,52 @@ def user_interact():
 
 
 
-#filter_links_from_reddit()
-#filter_github_from_links()
-#fetch_github_stats()
-user_interact()
+
+print("=== Stawka (/stɔuka/, cute stalker) ===")
+while True:
+    comps = input(">>> ").split(' ')
+    if not comps: continue
+
+    head = comps[0]
+    if head == "help":
+        print("""
+help - help
+exit - exit
+update - run fetch and filter
+filter - run filter only
+rev un - review unreviewed 
+rev maybe - review with maybe status
+list - list reviews
+              """)
+
+    elif head == "exit":
+        break
+
+    elif head == "update":
+        word = input("warning: you're about to send packets, continue? [yes]")
+
+        if word == "yes":
+            fetch_reddit()
+            filter_links_from_reddit()
+            filter_github_from_links()
+            fetch_github_stats()
+            filter_review_from_github()
+
+    elif head == "filter":
+        filter_links_from_reddit()
+        filter_github_from_links()
+        filter_review_from_github()
+
+    elif head == "list":
+        pass
+         
+
+
+
+
+
+
+#interact()
 
 
 
