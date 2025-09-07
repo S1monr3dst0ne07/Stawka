@@ -409,6 +409,7 @@ status x        - set status
                 (commit.status, commit.desc, str(commit.sites))
             )
             commit.active = False
+            db.commit()
 
     elif head == "show":
         if not arg:
