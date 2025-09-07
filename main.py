@@ -4,6 +4,7 @@ import argparse
 import sqlite3
 import urlextract
 import urllib.parse
+import requests
 
 parser = argparse.ArgumentParser(
     prog='Stawka (/stɔuka/, cute version of stalker)',
@@ -11,7 +12,8 @@ parser = argparse.ArgumentParser(
     epilog="just a bit silly :3"
 )
 parser.add_argument("--database", action="store", default="main.db", help="database file path")
-parser.add_argument("--creds", action="store", default="creds.json", help="credentials file path")
+parser.add_argument("--github-token", dest = "github_token", action="store", default="creds/github.txt", help = "github access token file path")
+parser.add_argument("--reddit-creds", dest = "reddit_creds", action="store", default="creds/reddit.json", help = "reddit credential file path")
 args = parser.parse_args()
 
 
@@ -23,7 +25,7 @@ db = sqlite3.connect(args.database)
 
 
 def update_reddit(subreddit='ProgrammingLanguages'):
-    with open(args.creds, 'r') as f:
+    with open(args.reddit_creds, 'r') as f:
         cred = json.load(f)
 
     reddit = praw.Reddit(**cred)
@@ -99,6 +101,7 @@ def filter_github_from_links():
         issue_count INTEGER,
         pr_count INTEGER,
         commit_count INTEGER,
+        processed BOOLEAN,
 
         FOREIGN KEY (post_id)
         REFERENCES reddit (id)
@@ -115,8 +118,8 @@ def filter_github_from_links():
             continue
 
         cur.execute("""
-            INSERT OR IGNORE INTO github (post_id, url, resolvable)
-            VALUES (?, ?, FALSE)""", (post_id, url)
+            INSERT OR IGNORE INTO github (post_id, url, resolvable, processed)
+            VALUES (?, ?, FALSE, FALSE)""", (post_id, url)
         )
         row_id = cur.lastrowid
 
@@ -125,16 +128,75 @@ def filter_github_from_links():
 
         owner, repo, *_ = path_comps
         repo_id = f"{owner}/{repo}"
-        cur.execute("""
+        cur.execute(f"""
             UPDATE github
             SET owner_name = ?, repo_name = ?, repo_id = ?, resolvable = TRUE
-            WHERE id = ?""", (owner, repo, repo_id, row_id)
+            WHERE id = {row_id}""", (owner, repo, repo_id)
         )
 
     db.commit()
 
 
+def fetch_github_stats():
+    print("Fetching github stats...")
+    cur = db.cursor()
 
-filter_github_from_links()
+    with open(args.github_token, 'r') as f:
+        gh_token = f.read()
+
+    headers = {"Authorization": f"Bearer {gh_token}"}
+    query = '''
+    {
+      repository(owner: "%(owner)s", name: "%(name)s") {
+        stargazerCount
+        forkCount
+        issues { totalCount }
+        pullRequests { totalCount }
+        defaultBranchRef {
+          target {
+            ... on Commit {
+              history { totalCount }
+            }
+          }
+        }
+        object(expression: "HEAD:README.md") {
+          ... on Blob {
+            text
+          }
+        }
+      }
+    }
+    '''
+
+    cur.execute("SELECT id, owner_name, repo_name FROM github WHERE resolvable = TRUE AND processed = FALSE")
+    for (row_id, owner, name) in cur.fetchall():
+        response = requests.post(
+            "https://api.github.com/graphql", 
+            json={"query": query % {"owner": owner, "name": name}},
+            headers=headers
+        )
+
+        print(response.status_code)
+        print(response.json())
+
+        repo_data = response.json()["data"]["repository"]
+
+        star_count   = repo_data["stargazerCount"]
+        issue_count  = repo_data["issues"]["totalCount"]
+        pr_count     = repo_data["pullRequests"]["totalCount"]
+        commit_count = repo_data["defaultBranchRef"]["target"]["history"]["totalCount"]
+        readme       = repo_data["object"]["text"]
+
+        cur.execute(f"""
+            UPDATE github
+            SET star_count = ?, issue_count = ?, pr_count = ?, commit_count = ?, processed = TRUE
+            WHERE id = {row_id}""", (star_count, issue_count, pr_count, commit_count)
+        )
+
+
+
+
+
+fetch_github_stats()
 db.close()
 
