@@ -78,12 +78,11 @@ def filter_links_from_reddit():
         #unescape
         content = content_raw.replace("\\_", "_").replace("\\~", "~")
 
-        links = [urllib.parse.unquote(l) for l in extor.find_urls(content)]
+        links = [
+            urllib.parse.unquote(l).strip('.')
+            for l in extor.find_urls(content)]
         if len(links) == 0:
             continue
-
-        #if "\\_" in content:
-        print(links)
 
         stream = zip(iter(lambda: id, 1), links)
         cur.executemany("""
@@ -100,9 +99,8 @@ def filter_github_from_links():
     CREATE TABLE IF NOT EXISTS github (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         url TEXT,
-        resolvable BOOLEAN,
-        owner_name TEXT,
-        repo_name TEXT,
+        owner_name TEXT UNIQUE,
+        repo_name TEXT  UNIQUE,
         repo_id TEXT , 
         post_id INTEGER,
         readme TEXT,
@@ -126,21 +124,19 @@ def filter_github_from_links():
         if url_comps.netloc != 'github.com':
             continue
 
-        cur.execute("""
-            INSERT OR IGNORE INTO github (post_id, url, resolvable, processed)
-            VALUES (?, ?, FALSE, FALSE)""", (post_id, url)
-        )
-        row_id = cur.lastrowid
-
         path_comps = url_comps.path.strip('/').split('/')
-        if len(path_comps) < 2: continue
+        if len(path_comps) < 2: 
+            continue
 
         owner, repo, *_ = path_comps
         repo_id = f"{owner}/{repo}"
-        cur.execute(f"""
-            UPDATE github
-            SET owner_name = ?, repo_name = ?, repo_id = ?, resolvable = TRUE
-            WHERE id = {row_id}""", (owner, repo, repo_id)
+
+        cur.execute("""
+            INSERT OR IGNORE INTO github (
+                post_id, url, processed, 
+                owner_name, repo_name, repo_id)
+            VALUES (?, ?, FALSE, ?, ?, ?)""", 
+            (post_id, url, owner, repo, repo_id)
         )
 
     db.commit()
@@ -172,7 +168,7 @@ def fetch_github_stats():
     }
     '''
 
-    cur.execute("SELECT id, owner_name, repo_name FROM github WHERE resolvable = TRUE AND processed = FALSE")
+    cur.execute("SELECT id, owner_name, repo_name FROM github WHERE processed = FALSE")
     for (row_id, owner, name) in cur.fetchall():
         response = requests.post(
             "https://api.github.com/graphql", 
@@ -186,6 +182,11 @@ def fetch_github_stats():
 
 
         repo_data = response.json()["data"]["repository"]
+        if repo_data is None:
+            #TODO: handle errors
+            continue
+
+
         star_count   = repo_data["stargazerCount"]
         issue_count  = repo_data["issues"]["totalCount"]
         pr_count     = repo_data["pullRequests"]["totalCount"]
@@ -212,8 +213,8 @@ def fetch_github_stats():
 
 
 
-filter_links_from_reddit()
-filter_github_from_links()
-#fetch_github_stats()
+#filter_links_from_reddit()
+#filter_github_from_links()
+fetch_github_stats()
 db.close()
 
