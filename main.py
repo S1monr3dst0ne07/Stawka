@@ -413,9 +413,9 @@ status x        - set status
         github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
 
         print("--- full into ---")
-        print(f"commit status: {status}")
-        print(f"commit desc  : {desc}")
-        print(f"commit sites : {sites}")
+        print(f"review status: {status}")
+        print(f"review desc  : {desc}")
+        print(f"review sites : {sites}")
         print(f"github url   : {github_url}")
         print(f"star   count : {star_count}")
         print(f"pr     count : {pr_count}")
