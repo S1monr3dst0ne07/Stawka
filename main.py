@@ -246,6 +246,7 @@ def filter_review_from_github():
         desc TEXT,
         sites TEXT,
 
+
         FOREIGN KEY (github_id)
         REFERENCES github (id)
             ON DELETE CASCADE
@@ -268,12 +269,10 @@ def filter_review_from_github():
 
 
 
-def interact():
-    
-
+def interact(main_url):
     profile = tempfile.mkdtemp()
     shutil.copytree(os.path.abspath(args.foxfile), profile, dirs_exist_ok=True)
-    subprocess.Popen([args.foxpath, "-no-remote", "-profile", profile])
+    subprocess.Popen([args.foxpath, "-no-remote", "-profile", profile, main_url])
 
     #wait for exit
     input("any key when done browsing")
@@ -284,16 +283,22 @@ def interact():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT url FROM moz_places")
-        for row in cursor.fetchall():
-            print(row)
+        open_urls = [x[0] for x in cursor.fetchall()]
         conn.close()
 
+    return open_urls
 
+
+
+
+class commit:
+    active = False
 
 
 print("=== Stawka (/stɔuka/, cute stalker) ===")
 while True:
-    comps = input(">>> ").split(' ')
+    prompt = f"{main_url} >>> " if commit.active else ">>> "
+    comps = input(prompt).split(' ', 1)
     if not comps: continue
 
     head = comps[0]
@@ -345,12 +350,68 @@ list - list reviews
         if arg in ('un', 'maybe'):
             status = arg
 
+
         cur = db.cursor()
-        cur.execute(f"SELECT github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{arg}'")
-        url = cur.fetchone()[0]
+        cur.execute(f"SELECT github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{status}'")
+        res = cur.fetchone()
+        if res is None:
+            print(f"no pending {status} revs")
+            continue
 
-        print(url)
+        commit.active = True
+        commit.github_url = res[0]
+        commit.open_urls = interact(main_url)
+        commit.status = None
+        commit.desc = None
 
+    elif head == "status":
+        if arg in ("maybe", "good", "bad", "un"):
+            if commit.active:
+                commit.status = arg
+            else:
+                print("no active commit")
+        else:
+            print(f"no such status {arg}")
+
+    elif head == "desc":
+        if commit.active:
+            commit.desc = arg
+        else:
+            print("no active commit")
+
+    elif head == "commit":
+        if not commit.active:
+            print("no active commit")
+            continue
+
+        print("--- commit info ---")
+        print("github url: {commit.github_url}")
+        print("opened urls: {commit.open_urls}")
+        print("status: {commit.status}")
+        print("desc: '{commit.desc}")
+
+    elif head == "show":
+        if not arg:
+            print("repo id not provided")
+            continue
+
+        cur = db.cursor()
+        cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.url, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE github.repo_id = '{arg}'")
+        github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
+
+        print("--- full into ---")
+        print(f"commit status: {status}")
+        print(f"commit desc  : {desc}")
+        print(f"commit sites : {sites}")
+        print(f"github url   : {github_url}")
+        print(f"star   count : {star_count}")
+        print(f"pr     count : {pr_count}")
+        print(f"commit count : {commit_count}")
+        print(f"reddit title : {reddit_title}")
+        print(f"reddit score : {reddit_score}")
+        print(f"reddit url   : {reddit_url}")
+
+        
 
          
 
@@ -359,7 +420,6 @@ list - list reviews
 
 
 
-#interact()
 
 
 
