@@ -365,7 +365,7 @@ status x        - set status
 
         commit.active = True
         commit.review_id, commit.github_url = res
-        commit.open_urls = interact(commit.github_url)
+        commit.sites = interact(commit.github_url)
         commit.status = None
         commit.desc = None
 
@@ -390,10 +390,10 @@ status x        - set status
             continue
 
         print("--- commit info ---")
-        print("github url: {commit.github_url}")
-        print("opened urls: {commit.open_urls}")
-        print("status: {commit.status}")
-        print("desc: '{commit.desc}")
+        print(f"github url: {commit.github_url}")
+        print(f"opened urls: {commit.open_urls}")
+        print(f"status: {commit.status}")
+        print(f"desc: '{commit.desc}'")
 
         if input("finalize? [yes]") == "yes":
             cur = db.cursor()
