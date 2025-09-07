@@ -24,7 +24,7 @@ db = sqlite3.connect(args.database)
 
 
 
-def update_reddit(subreddit='ProgrammingLanguages'):
+def fetch_reddit(subreddit='ProgrammingLanguages'):
     with open(args.reddit_creds, 'r') as f:
         cred = json.load(f)
 
@@ -74,8 +74,17 @@ def filter_links_from_reddit():
     extor = urlextract.URLExtract()
 
     cur.execute("SELECT id, content FROM reddit")
-    for (id, content) in cur.fetchall():
-        links = extor.find_urls(content)
+    for (id, content_raw) in cur.fetchall():
+        #unescape
+        content = content_raw.replace("\\_", "_").replace("\\~", "~")
+
+        links = [urllib.parse.unquote(l) for l in extor.find_urls(content)]
+        if len(links) == 0:
+            continue
+
+        #if "\\_" in content:
+        print(links)
+
         stream = zip(iter(lambda: id, 1), links)
         cur.executemany("""
             INSERT OR IGNORE INTO links (post_id, url)
@@ -159,11 +168,6 @@ def fetch_github_stats():
             }
           }
         }
-        object(expression: "HEAD:README.md") {
-          ... on Blob {
-            text
-          }
-        }
       }
     }
     '''
@@ -177,26 +181,39 @@ def fetch_github_stats():
         )
 
         print(response.status_code)
-        print(response.json())
+        print(response.json()) 
+        print(owner, name)
+
 
         repo_data = response.json()["data"]["repository"]
-
         star_count   = repo_data["stargazerCount"]
         issue_count  = repo_data["issues"]["totalCount"]
         pr_count     = repo_data["pullRequests"]["totalCount"]
         commit_count = repo_data["defaultBranchRef"]["target"]["history"]["totalCount"]
-        readme       = repo_data["object"]["text"]
+
+
+        response = requests.get(
+            f"https://api.github.com/repos/{owner}/{name}/readme",
+            headers = {**headers, "Accept": "application/vnd.github.v3.raw"},
+        )
+
+        readme       = response.text
 
         cur.execute(f"""
             UPDATE github
-            SET star_count = ?, issue_count = ?, pr_count = ?, commit_count = ?, processed = TRUE
-            WHERE id = {row_id}""", (star_count, issue_count, pr_count, commit_count)
+            SET readme = ?, star_count = ?, issue_count = ?, pr_count = ?, commit_count = ?, processed = TRUE
+            WHERE id = {row_id}""", (readme, star_count, issue_count, pr_count, commit_count)
         )
 
+        db.commit()
 
 
 
 
-fetch_github_stats()
+
+
+filter_links_from_reddit()
+filter_github_from_links()
+#fetch_github_stats()
 db.close()
 
