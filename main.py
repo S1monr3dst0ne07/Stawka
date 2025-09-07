@@ -391,7 +391,7 @@ status x        - set status
 
         print("--- commit info ---")
         print(f"github url: {commit.github_url}")
-        print(f"opened urls: {commit.open_urls}")
+        print(f"opened urls: {commit.sites}")
         print(f"status: {commit.status}")
         print(f"desc: '{commit.desc}'")
 
