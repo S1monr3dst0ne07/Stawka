@@ -293,11 +293,12 @@ def interact(main_url):
 
 class commit:
     active = False
+    github_url = ""
 
 
 print("=== Stawka (/stɔuka/, cute stalker) ===")
 while True:
-    prompt = f"{main_url} >>> " if commit.active else ">>> "
+    prompt = f"{commit.github_url} >>> " if commit.active else ">>> "
     comps = input(prompt).split(' ', 1)
     if not comps: continue
 
@@ -364,7 +365,7 @@ status x        - set status
 
         commit.active = True
         commit.review_id, commit.github_url = res
-        commit.open_urls = interact(main_url)
+        commit.open_urls = interact(commit.github_url)
         commit.status = None
         commit.desc = None
 
