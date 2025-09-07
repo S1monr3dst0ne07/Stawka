@@ -269,10 +269,13 @@ def filter_review_from_github():
 
 
 
-def interact(main_url):
+def interact(urls):
     profile = tempfile.mkdtemp()
     shutil.copytree(os.path.abspath(args.foxfile), profile, dirs_exist_ok=True)
-    subprocess.Popen([args.foxpath, "-no-remote", "-profile", profile, main_url])
+    subprocess.Popen([
+        args.foxpath, "-no-remote", "-profile", profile, 
+        *urls
+    ])
 
     #wait for exit
     input("any key when done browsing")
@@ -377,7 +380,7 @@ status x        - set status
 
 
         cur = db.cursor()
-        cur.execute(f"SELECT review.id, github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{status}'")
+        cur.execute(f"SELECT review.id, github.url, reddit.url FROM review INNER JOIN github on github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE review.eligible = TRUE AND review.status = '{status}'")
         res = cur.fetchone()
         if res is None:
             print(f"no pending {status} revs")
@@ -386,12 +389,13 @@ status x        - set status
 
 
         commit.active = True
-        commit.review_id, commit.github_url = res
+        commit.review_id, commit.github_url, commit.reddit_url = res
 
         show_review(f"review.id = '{commit.review_id}'")
         print("\n")
 
-        commit.sites = interact(commit.github_url)
+        urls = (commit.reddit_url, commit.github_url)
+        commit.sites = interact(urls)
         commit.status = None
         commit.desc = ""
 
