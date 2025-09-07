@@ -291,6 +291,25 @@ def interact(main_url):
 
 
 
+def show_review(condition):
+        cur = db.cursor()
+        cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.url, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE {condition}")
+        github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
+
+        print("--- full into ---")
+        print(f"review status: {status}")
+        print(f"review desc  : {desc}")
+        print(f"review sites : {sites}")
+        print(f"github url   : {github_url}")
+        print(f"star   count : {star_count}")
+        print(f"pr     count : {pr_count}")
+        print(f"commit count : {commit_count}")
+        print(f"reddit title : {reddit_title}")
+        print(f"reddit score : {reddit_score}")
+        print(f"reddit url   : {reddit_url}")
+
+
+
 
 class commit:
     active = False
@@ -364,11 +383,18 @@ status x        - set status
             print(f"no pending {status} revs")
             continue
 
+
+
         commit.active = True
         commit.review_id, commit.github_url = res
+
+        show_review(f"review.id = '{commit.review_id}'")
+        print("\n")
+
         commit.sites = interact(commit.github_url)
         commit.status = None
         commit.desc = ""
+
 
     elif head == "status":
         if arg in ("maybe", "good", "bad", "un"):
@@ -416,21 +442,7 @@ status x        - set status
             print("repo id not provided")
             continue
 
-        cur = db.cursor()
-        cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.url, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE github.repo_id = '{arg}'")
-        github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
-
-        print("--- full into ---")
-        print(f"review status: {status}")
-        print(f"review desc  : {desc}")
-        print(f"review sites : {sites}")
-        print(f"github url   : {github_url}")
-        print(f"star   count : {star_count}")
-        print(f"pr     count : {pr_count}")
-        print(f"commit count : {commit_count}")
-        print(f"reddit title : {reddit_title}")
-        print(f"reddit score : {reddit_score}")
-        print(f"reddit url   : {reddit_url}")
+        show_review(f"github.repo_id = '{arg}'")
 
 
 
