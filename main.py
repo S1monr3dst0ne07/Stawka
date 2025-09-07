@@ -405,7 +405,7 @@ status x        - set status
                 UPDATE review
                 SET status = ?, desc = ?, sites = ?
                 WHERE id = {commit.review_id}""", 
-                (commit.status, str(commit.desc), commit.sites)
+                (commit.status, commit.desc, str(commit.sites))
             )
             commit.active = False
 
