@@ -307,13 +307,17 @@ while True:
 
     if head == "help":
         print("""
-help - help
-exit - exit
-update - run fetch and filter
-filter - run filter only
-rev un - review unreviewed 
-rev maybe - review with maybe status
-list - list reviews
+help            - help
+exit            - exit
+update          - run fetch and filter
+filter          - run filter only
+rev un          - review unreviewed 
+rev maybe       - review with maybe status
+list            - list review commits
+show repo_id    - show commit with repo_id
+commit          - commit current
+desc x          - set description
+status x        - set status
               """)
 
     elif head == "exit":
@@ -352,14 +356,14 @@ list - list reviews
 
 
         cur = db.cursor()
-        cur.execute(f"SELECT github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{status}'")
+        cur.execute(f"SELECT review.id, github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{status}'")
         res = cur.fetchone()
         if res is None:
             print(f"no pending {status} revs")
             continue
 
         commit.active = True
-        commit.github_url = res[0]
+        commit.review_id, commit.github_url = res
         commit.open_urls = interact(main_url)
         commit.status = None
         commit.desc = None
@@ -389,6 +393,15 @@ list - list reviews
         print("opened urls: {commit.open_urls}")
         print("status: {commit.status}")
         print("desc: '{commit.desc}")
+
+        if input("finalize? [yes]") == "yes":
+            cur = db.cursor()
+            cur.execute(f"""
+                UPDATE review
+                SET status = ?, desc = ?, sites = ?
+                WHERE id = {commit.review_id}""", (commit.status, commit.desc, commit.sites)
+            )
+            commit.active = False
 
     elif head == "show":
         if not arg:
