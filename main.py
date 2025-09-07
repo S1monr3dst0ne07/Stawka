@@ -283,10 +283,11 @@ def interact(main_url):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT url FROM moz_places")
-        open_urls = [x[0] for x in cursor.fetchall()]
+        history_urls = [x[0] for x in cursor.fetchall()]
         conn.close()
 
-    return open_urls
+    print(f"urls in history: {history_urls}")
+    return history_urls
 
 
 
@@ -429,10 +430,6 @@ status x        - set status
         print(f"reddit title : {reddit_title}")
         print(f"reddit score : {reddit_score}")
         print(f"reddit url   : {reddit_url}")
-
-        
-
-         
 
 
 
