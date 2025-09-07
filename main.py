@@ -367,7 +367,7 @@ status x        - set status
         commit.review_id, commit.github_url = res
         commit.sites = interact(commit.github_url)
         commit.status = None
-        commit.desc = None
+        commit.desc = ""
 
     elif head == "status":
         if arg in ("maybe", "good", "bad", "un"):
@@ -395,12 +395,17 @@ status x        - set status
         print(f"status: {commit.status}")
         print(f"desc: '{commit.desc}'")
 
+        if status is None:
+            print("cannot commit without status")
+            continue 
+
         if input("finalize? [yes]") == "yes":
             cur = db.cursor()
             cur.execute(f"""
                 UPDATE review
                 SET status = ?, desc = ?, sites = ?
-                WHERE id = {commit.review_id}""", (commit.status, commit.desc, commit.sites)
+                WHERE id = {commit.review_id}""", 
+                (commit.status, str(commit.desc), commit.sites)
             )
             commit.active = False
 
