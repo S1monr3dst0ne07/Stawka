@@ -297,6 +297,9 @@ while True:
     if not comps: continue
 
     head = comps[0]
+    arg = comps[1] if len(comps) > 1 else None
+
+
     if head == "help":
         print("""
 help - help
@@ -327,7 +330,28 @@ list - list reviews
         filter_review_from_github()
 
     elif head == "list":
-        pass
+        status_select = "review.status"
+        if arg in ('un', 'maybe', 'good', 'bad'):
+            status_select = f" '{arg}'"
+
+
+        cur = db.cursor()
+        cur.execute(f"SELECT review.status, github.repo_id FROM review INNER JOIN github ON github.id = review.github_id WHERE review.eligible = TRUE AND review.status = {status_select}")
+        for (status, id) in cur.fetchall():
+            print(f"{status}: {id}")
+
+    elif head == "rev":
+        status = 'un'
+        if arg in ('un', 'maybe'):
+            status = arg
+
+        cur = db.cursor()
+        cur.execute(f"SELECT github.url FROM review INNER JOIN github on github.id = review.github_id WHERE review.eligible = TRUE AND review.status = '{arg}'")
+        url = cur.fetchone()[0]
+
+        print(url)
+
+
          
 
 
