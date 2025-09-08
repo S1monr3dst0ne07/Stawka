@@ -270,24 +270,24 @@ def filter_review_from_github():
 
 
 def interact(urls):
-    profile = tempfile.mkdtemp()
-    shutil.copytree(os.path.abspath(args.foxfile), profile, dirs_exist_ok=True)
-    subprocess.Popen([
-        args.foxpath, "-no-remote", "-profile", profile, 
-        *urls
-    ])
+    with tempfile.TemporaryDirectory() as profile:
+        shutil.copytree(os.path.abspath(args.foxfile), profile, dirs_exist_ok=True)
+        subprocess.Popen([
+            args.foxpath, "-no-remote", "-profile", profile, 
+            *urls
+        ])
 
-    #wait for exit
-    input("any key when done browsing")
+        #wait for exit
+        input("any key when done browsing")
 
-    # Read browsing history from places.sqlite
-    db_path = os.path.join(profile, "places.sqlite")
-    if os.path.exists(db_path):
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT url FROM moz_places")
-        history_urls = [x[0] for x in cursor.fetchall()]
-        conn.close()
+        # Read browsing history from places.sqlite
+        db_path = os.path.join(profile, "places.sqlite")
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT url FROM moz_places")
+            history_urls = [x[0] for x in cursor.fetchall()]
+            conn.close()
 
     print(f"urls in history: {history_urls}")
     return history_urls
