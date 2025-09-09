@@ -49,7 +49,8 @@ def fetch_reddit(subreddit='ProgrammingLanguages'):
         url TEXT,
         content TEXT,
         subreddit TEXT,
-        self BOOLEAN
+        self BOOLEAN,
+        permalink TEXT
     );
     """)
 
@@ -63,6 +64,12 @@ def fetch_reddit(subreddit='ProgrammingLanguages'):
                 INSERT OR IGNORE INTO reddit (reddit_id, title, score, url, content, subreddit, self)
                 VALUES (?, ?, ?, ?, ?, ?, ?);
                 """, (post.id, post.title, post.score, post.url, post.selftext, subreddit, post.is_self)
+            )
+
+            permaurl = post.permalink if "http" in post.permalink else f"https://reddit.com{post.permalink}"
+            #HOT FIX, REMOVE THIS
+            cur.execute("""
+                UPDATE reddit SET permalink = ? WHERE reddit_id = ?""", (permaurl, post.id)
             )
 
     db.commit()
