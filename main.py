@@ -303,7 +303,7 @@ def interact(urls):
 
 def show_review(condition):
         cur = db.cursor()
-        cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.url, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE {condition}")
+        cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.permalink, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE {condition}")
         github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
 
         print("--- full into ---")
@@ -394,7 +394,7 @@ status x        - set status
 
 
         cur = db.cursor()
-        cur.execute(f"SELECT review.id, github.url, reddit.url FROM review INNER JOIN github on github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE review.eligible = TRUE AND review.status = '{status}'")
+        cur.execute(f"SELECT review.id, github.url, reddit.permalink FROM review INNER JOIN github on github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE review.eligible = TRUE AND review.status = '{status}'")
         res = cur.fetchone()
         if res is None:
             print(f"no pending {status} revs")
