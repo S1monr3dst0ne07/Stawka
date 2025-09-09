@@ -370,8 +370,15 @@ status x        - set status
 
         cur = db.cursor()
         cur.execute(f"SELECT review.status, github.repo_id FROM review INNER JOIN github ON github.id = review.github_id WHERE review.eligible = TRUE AND review.status = {status_select}")
+        counts = {}
         for (status, id) in cur.fetchall():
+            if status not in counts: counts[status] = 0
+            counts[status] += 1
             print(f"{status}: {id}")
+
+        print("--- counts ---")
+        for (status, count) in counts.items():
+            print(f"\t{status}: {count}")
 
     elif head == "rev":
         status = 'un'
