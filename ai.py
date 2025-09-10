@@ -17,8 +17,16 @@ parser = argparse.ArgumentParser(
         epilog='just a bit silly :3'
 )
 parser.add_argument("--session", action="store", default=None, help="specify session id to use as context for model")
+parser.add_argument("--drop", action="store_true", help="drop chat session tables")
 args = parser.parse_args()
 
+
+if args.drop:
+    cur.execute("SELECT name from sqlite_master where type = 'table';")
+    for (name,) in cur.fetchall():
+        if name.startswith("session_"):
+            print(f"dropping: {name}")
+            cur.execute(f"DROP TABLE '{name}'")
 
 
 def get_ftime():
@@ -26,7 +34,7 @@ def get_ftime():
 
 
 
-session_id = args.session if args.session else get_ftime()
+session_id = args.session if args.session else f"'session_{get_ftime()}'"
 
 
 #table to store chat messages
@@ -52,7 +60,7 @@ def insert_message(msg, role):
 
 
 def generate():
-    cur.execute("""
+    cur.execute(f"""
         SELECT role, content FROM {session_id};
     """)
     
