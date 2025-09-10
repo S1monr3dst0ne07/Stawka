@@ -1,7 +1,7 @@
 
 
 import sqlite3
-from openai import OpenAI
+import ollama
 import json
 import argparse
 from datetime import datetime
@@ -9,7 +9,6 @@ from datetime import datetime
 
 db = sqlite3.connect("ai.db")
 cur = db.cursor()
-client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
 parser = argparse.ArgumentParser(
         prog='AI Stawka',
@@ -69,19 +68,28 @@ def generate():
         for role, content in cur.fetchall()
     ]
 
-    result = client.chat.completions.create(
+    stream = ollama.chat(
         model="mistral",
-        messages = messages,
-        temperature=0.7,       
-        max_tokens=512,        
-        top_p=0.8,             
-        frequency_penalty=1.1, 
-        presence_penalty=0.5
+        messages=messages,
+        stream=True,
+        options={
+            "temperature": 0.7,
+            "num_predict": 512,      # instead of max_tokens
+            "top_p": 0.8,
+            "frequency_penalty": 1.1,
+            "presence_penalty": 0.5,
+        }
     )
+    print(stream)
 
-    response = result.choices[0].message.content
+    response = ""
+    for chunk in stream:
+        print(".")
+        token = chunk["message"]["content"]
+        print(token, end="", flush=True)
+        response += token
+
     insert_message(response, "assistant")
-
     return response
 
 
@@ -111,6 +119,7 @@ def insert_system_message(msg):
     insert_message(msg, "system")
 
 
+insert_schema()
 insert_message("What is 1 + 2 + 3?", "user")
 
 running = True
@@ -127,7 +136,6 @@ funcs = {
 
 while running:
     resp_txt = generate()
-    print(resp_txt)
 
     try:
         resp = json.loads(resp_txt)
