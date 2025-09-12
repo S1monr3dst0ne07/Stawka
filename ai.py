@@ -42,122 +42,99 @@ cur.execute(f"""
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         role TEXT,
         content TEXT,
-        time TEXT
+        time TEXT,
+        tool_name TEXT
     );
 """)
 
 
-def insert_message(msg, role):
+def insert_message(msg, role, tool_name=None):
     cur.execute(f"""
-        INSERT INTO {session_id} (role, content, time)
-        VALUES (?, ?, ?);
-    """, (role, msg, get_ftime())
+        INSERT INTO {session_id} (role, content, time, tool_name)
+        VALUES (?, ?, ?, ?);
+    """, (role, msg, get_ftime(), tool_name)
     )
     db.commit()
+
+
+
+running = True
+class tools:
+    def tool_add_two_numbers(a: int, b: int) -> int:
+        return a + b
+
+
+    def tool_finish(answer: str):
+        global running
+        print(answer)
+
+        running = False
+
+tool_map = { key: getattr(tools, key) for key in dir(tools) if key.startswith('tool_') }
 
 
 
 
 def generate():
     cur.execute(f"""
-        SELECT role, content FROM {session_id};
+        SELECT role, content, tool_name FROM {session_id};
     """)
     
     messages = [
-        { "role" : role, "content" : content }
-        for role, content in cur.fetchall()
+        { "role" : role, "content" : content} | 
+        ({"tool_name": tool_name } if tool_name is not None else {})
+        for role, content, tool_name in cur.fetchall()
     ]
 
-    stream = ollama.chat(
-        model="mistral",
+    print(messages)
+
+    response = ollama.chat(
+        model="mistral:instruct",
         messages=messages,
-        stream=True,
+        tools=list(tool_map.values()),
         options={
-            "temperature": 0.7,
-            "num_predict": 512,      # instead of max_tokens
+            "temperature": 0,
+            "num_predict": 200,      # instead of max_tokens
+            "top_k": 40,
             "top_p": 0.8,
             "frequency_penalty": 1.1,
             "presence_penalty": 0.5,
+            "num_ctx": 4096,
         }
     )
-    print(stream)
 
-    response = ""
-    for chunk in stream:
-        print(".")
-        token = chunk["message"]["content"]
-        print(token, end="", flush=True)
-        response += token
-
-    insert_message(response, "assistant")
     return response
 
-
-def insert_schema():
-    insert_message("""
-    You are a function-calling AI.
-    You will always respond with a function call in JSON format.
-    You will ALWAYS respond in JSON.
-
-    Function call format: (what you'll be responding with)
-    {
-        "function": "<name>",
-        "arguments": { ... }
-    }
-
-
-    Available Functions:
-    - add(a: int, b: int)
-        Takes two integers, computes their sum.
-    - done(answer: string)
-        To be called when answer to user prompt has been found.
-
-
-    """, "system")
 
 def insert_system_message(msg):
     insert_message(msg, "system")
 
+def insert_system_json(obj):
+    insert_system_message(json.dumps(obj))
 
-insert_schema()
+
+insert_system_message("""
+    You will answer the user prompt with the use of the provided tool.
+""")
 insert_message("What is 1 + 2 + 3?", "user")
 
-running = True
-def done(answer):
-    global running
-    print(answer)
 
-    running = False
 
-funcs = {
-    "add": lambda a, b: a + b,
-    "done": done,
-}
 
 while running:
-    resp_txt = generate()
+    resp = generate()
+    print(resp)
 
-    try:
-        resp = json.loads(resp_txt)
-        print(reps)
-
-        fn = resp["function"]
-        args = resp["arguments"]
-
-    except:
-        insert_system_message("Error: You have responsed with a malformed response, please adhere to the provided schema.")
-        insert_schema()
-        continue
-
-
-    if fn not in funcs:
-        insert_system_message("Error: You have responsed with a call to '{fn}', which is a function that does NOT exist.")
-        continue
-
-    try:
-        funcs[fn](**args)
-    except:
-        insert_system_message("Error: You have responsed with a call to '{fn}' while not providing the correct parameters for such a call.")
+    if resp.message.tool_calls:
+        for tool in resp.message.tool_calls:
+            tool_name = tool.function.name 
+            try:
+                result = tool_map[tool_name](**tool.function.arguments) 
+                print(result)
+                insert_message(str(result), 'tool', tool_name=tool_name)
+            except Exception as E:
+                print(E)
+                pass
 
 
 
