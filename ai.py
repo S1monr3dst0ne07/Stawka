@@ -80,7 +80,7 @@ def get_post_titles_prompt():
         for (title,) in 
         user_cur.fetchall()
     )
-    insert_system_message(f"Information, Post list: \n{posts}")
+    return f"Information, Post list: \n{posts}"
 
 
 running = True
@@ -95,8 +95,9 @@ class tools:
 
 
 
-    def tool_finish(answer: str):
+    def tool_finish(answer: str, rationale: str):
         global running
+        print(answer)
         print(answer)
 
         running = False
@@ -133,6 +134,7 @@ system_prompt = f"""
     You will prioritize previously provided information over requesting new information.
     If the provided information doesn't answer the question, you will call `tool_get_post_content` to fetch an additional post.
     Once you have found the answer, you will call `tool_finish` with it.
+    You will consider ALL of the information, before coming to a conclusion.
     You will NOT explain, you will merely call a tool.
 """
 user_prompt = "Is the poster queer?"
@@ -160,10 +162,10 @@ def generate():
         messages=messages,
         tools=tools.get_tool_list(),
         options={
-            "temperature": 0.3,
+            "temperature": 0.5,
             "num_predict": 200,      # instead of max_tokens
             "top_p": 0.95,
-            "top_k": 15,
+            "top_k": 20,
             "frequency_penalty": 1.1,
             "presence_penalty": 0.5,
             "num_ctx": 4096,
@@ -182,10 +184,10 @@ while running:
 
     #parsed tool calls
     if resp.message.tool_calls:
-        for tool in resp.message.tool_calls:
+        for call in resp.message.tool_calls:
             tools.call(
-                tool_name = tool.function.name,
-                tool_args = tool.function.arguments,
+                tool_name = call.function.name,
+                tool_args = call.function.arguments,
             )
 
     #unparsed tool calls
@@ -194,11 +196,12 @@ while running:
         if match is None:
             continue 
         print(f"matches: {match}")
-        if 'name' in match and 'arguments' in match:
-            tools.call(
-                tool_name = match['name'],
-                tool_args = match['argumetns']
-            )
+        for call in match:
+            if 'name' in call and 'arguments' in call:
+                tools.call(
+                    tool_name = call['name'],
+                    tool_args = call['arguments']
+                )
 
 
 
