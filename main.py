@@ -371,7 +371,7 @@ status x        - set status
 
     elif head == "list":
         status_select = "review.status"
-        if arg in ('un', 'maybe', 'good', 'bad'):
+        if arg in ('un', 'maybe', 'good', 'bad', 'dev'):
             status_select = f" '{arg}'"
 
 
@@ -462,7 +462,23 @@ status x        - set status
 
         show_review(f"github.repo_id = '{arg}'")
 
+    elif head == "dev":
+        if not arg:
+            print("repo id not provided")
+            continue
 
+        cur = db.cursor()
+        cur.execute(f"SELECT review.id, review.status FROM review INNER JOIN github ON github.id = review.github_id WHERE github.repo_id = '{arg}'")
+        id, status = cur.fetchone()
+
+        if status != "good":
+            print(f"can only dev review with status good. this review has status {status}")
+            continue
+
+        if input("confirm? [yes]") == "yes":
+            cur.execute(f"UPDATE review SET status = 'dev' WHERE id = {id}")
+            db.commit()
+        
 
 
 
