@@ -304,7 +304,9 @@ def interact(urls):
 def show_review(condition):
         cur = db.cursor()
         cur.execute(f"SELECT github.url, github.star_count, github.pr_count, github.commit_count, reddit.title, reddit.score, reddit.permalink, review.status, review.desc, review.sites FROM review INNER JOIN github ON github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE {condition}")
-        github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = cur.fetchone() 
+        res = cur.fetchone()
+        if res is None: return
+        github_url, star_count, pr_count, commit_count, reddit_title, reddit_score, reddit_url, status, desc, sites = res
 
         print("--- full into ---")
         print(f"review status: {status}")
@@ -479,9 +481,22 @@ status x        - set status
             cur.execute(f"UPDATE review SET status = 'dev' WHERE id = {id}")
             db.commit()
         
+    elif head == "open":
+        cur = db.cursor()
+        cur.execute(f"SELECT review.id, github.url, reddit.permalink FROM review INNER JOIN github on github.id = review.github_id INNER JOIN reddit ON reddit.id = github.post_id WHERE review.eligible = TRUE AND github.repo_id = '{arg}'")
+        res = cur.fetchone()
+        if res is None:
+            print(f"no such repo '{arg}'")
+            continue
 
 
+        review_id, github_url, reddit_url = res
 
+        show_review(f"review.id = '{review_id}'")
+        print("\n")
+
+        urls = (reddit_url, github_url)
+        interact(urls)
 
 
 
