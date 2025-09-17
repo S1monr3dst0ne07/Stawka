@@ -1,5 +1,6 @@
 legacy
-main.db
+*.db
+*.csv
 creds
 fox_file
 backup
